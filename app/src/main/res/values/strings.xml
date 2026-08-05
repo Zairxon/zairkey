@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">zairkey</string>
+    <string name="keyboard_name">zairkey — EN/RU/UZ</string>
+    <string name="subtype_en">English</string>
+    <string name="subtype_ru">Русский / Ўзбекча</string>
+</resources>
