@@ -55,6 +55,11 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         WindowCompat.getInsetsController(w, w.decorView).isAppearanceLightNavigationBars = lightBg
     }
 
+    override fun onFinishInputView(finishingInput: Boolean) {
+        learnCurrentWord() // доучить последнее слово + пару перед закрытием
+        super.onFinishInputView(finishingInput)
+    }
+
     override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
         super.onStartInput(info, restarting)
         layer = Layer.ALPHA

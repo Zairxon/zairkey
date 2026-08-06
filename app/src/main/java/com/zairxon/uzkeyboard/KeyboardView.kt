@@ -50,11 +50,12 @@ class KeyboardView(context: Context) : View(context) {
     private val topPad = dp(5f)
     private val corner = dp(Fonts.cornerDp)
 
-    // Панель подсказок (обучение словам) — показывается только когда есть подсказки
+    // Панель подсказок (обучение словам). Высота ЗАРЕЗЕРВИРОВАНА всегда, чтобы
+    // клавиши не смещались при появлении/исчезновении подсказок (иначе мис-тапы).
     private var suggestions: List<String> = emptyList()
-    private val suggBarH = dp(38f)
+    private val suggBarH = dp(36f)
     private var suggDownIndex = -1
-    private val topOffset get() = if (suggestions.isEmpty()) 0f else suggBarH
+    private val topOffset get() = suggBarH
 
     private val serifFont = Fonts.serif(context)
     private val interFont = Fonts.medium(context)
@@ -116,16 +117,11 @@ class KeyboardView(context: Context) : View(context) {
         invalidate()
     }
 
-    /** Подсказки слов. Меняем высоту вью только когда панель появляется/исчезает. */
+    /** Подсказки слов. Высота панели постоянна — перекладка не нужна, только перерисовка. */
     fun setSuggestions(list: List<String>) {
         if (list == suggestions) return
-        val heightChanged = list.isEmpty() != suggestions.isEmpty()
         suggestions = list
         suggDownIndex = -1
-        if (heightChanged) {
-            if (width > 0) computeRects()
-            requestLayout()
-        }
         invalidate()
     }
 
