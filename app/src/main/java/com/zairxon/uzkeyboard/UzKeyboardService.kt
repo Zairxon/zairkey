@@ -119,34 +119,47 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
 
     override fun onSuggestionPicked(word: String) {
         val ic = currentInputConnection ?: return
-        val cur = currentWord()
+        val (prev, cur) = contextWords()
         val out = if (cur.isNotEmpty() && cur[0].isUpperCase())
             word.replaceFirstChar { it.uppercase() } else word
         if (cur.isNotEmpty()) ic.deleteSurroundingText(cur.length, 0)
         ic.commitText("$out ", 1)
         WordStore.learn(this, word)
+        if (prev.isNotEmpty()) WordStore.learnPair(this, prev, word)
         maybeAutoCaps()
-        updateSuggestions()
+        updateSuggestions() // теперь курсор после слова → предскажет следующее
     }
 
-    /** Текущее незавершённое слово перед курсором (хвост из букв). */
-    private fun currentWord(): String {
-        val before = currentInputConnection?.getTextBeforeCursor(48, 0)?.toString() ?: return ""
+    /** Пара (предыдущее завершённое слово, текущее незавершённое) перед курсором. */
+    private fun contextWords(): Pair<String, String> {
+        val before = currentInputConnection?.getTextBeforeCursor(64, 0)?.toString() ?: return "" to ""
         var i = before.length
         while (i > 0 && before[i - 1].isLetter()) i--
-        return before.substring(i)
+        val cur = before.substring(i)
+        var j = i
+        while (j > 0 && !before[j - 1].isLetter()) j-- // пропустить разделители
+        var k = j
+        while (k > 0 && before[k - 1].isLetter()) k--
+        val prev = before.substring(k, j)
+        return prev to cur
     }
 
+    private fun currentWord(): String = contextWords().second
+
+    /** На границе слова: запоминаем слово и пару (пред.слово → это слово). */
     private fun learnCurrentWord() {
-        val w = currentWord()
-        if (w.isNotEmpty()) WordStore.learn(this, w)
+        val (prev, cur) = contextWords()
+        if (cur.isEmpty()) return
+        WordStore.learn(this, cur)
+        if (prev.isNotEmpty()) WordStore.learnPair(this, prev, cur)
     }
 
     private fun updateSuggestions() {
         if (!::kbView.isInitialized) return
         if (layer != Layer.ALPHA) { kbView.setSuggestions(emptyList()); return }
-        val w = currentWord()
-        val list = if (w.isNotEmpty()) WordStore.suggest(this, w, 3) else emptyList()
+        val (prev, cur) = contextWords()
+        val list = if (cur.isNotEmpty() || prev.isNotEmpty())
+            WordStore.suggest(this, prev, cur, 3) else emptyList()
         kbView.setSuggestions(list)
     }
 
