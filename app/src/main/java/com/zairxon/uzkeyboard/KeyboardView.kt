@@ -28,6 +28,7 @@ class KeyboardView(context: Context) : View(context) {
         fun onSpecial(code: KeyCode)
         fun onLanguagePicker()
         fun onCursorMove(steps: Int)
+        fun onSuggestionPicked(word: String)
     }
 
     var listener: Listener? = null
@@ -43,11 +44,17 @@ class KeyboardView(context: Context) : View(context) {
     private val density = resources.displayMetrics.density
     private fun dp(v: Float) = v * density
 
-    private val rowHeight = dp(48f)
+    private val rowHeight = dp(44f)
     private val vGap = dp(5f)
     private val hGap = dp(4f)
     private val topPad = dp(5f)
     private val corner = dp(Fonts.cornerDp)
+
+    // Панель подсказок (обучение словам) — показывается только когда есть подсказки
+    private var suggestions: List<String> = emptyList()
+    private val suggBarH = dp(38f)
+    private var suggDownIndex = -1
+    private val topOffset get() = if (suggestions.isEmpty()) 0f else suggBarH
 
     private val serifFont = Fonts.serif(context)
     private val interFont = Fonts.medium(context)
@@ -109,12 +116,25 @@ class KeyboardView(context: Context) : View(context) {
         invalidate()
     }
 
+    /** Подсказки слов. Меняем высоту вью только когда панель появляется/исчезает. */
+    fun setSuggestions(list: List<String>) {
+        if (list == suggestions) return
+        val heightChanged = list.isEmpty() != suggestions.isEmpty()
+        suggestions = list
+        suggDownIndex = -1
+        if (heightChanged) {
+            if (width > 0) computeRects()
+            requestLayout()
+        }
+        invalidate()
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
         val rowCount = if (gridKeys.isNotEmpty())
             ceil(gridKeys.maxOf { it.row + it.hRows }).toInt()
         else rows.size.coerceAtLeast(4)
-        val h = (topPad + rowCount * rowHeight + rowCount * vGap).toInt()
+        val h = (topPad + topOffset + rowCount * rowHeight + rowCount * vGap).toInt()
         setMeasuredDimension(w, h)
     }
 
@@ -132,7 +152,7 @@ class KeyboardView(context: Context) : View(context) {
             return
         }
         if (rows.isEmpty()) return
-        var y = topPad
+        var y = topPad + topOffset
         for (row in rows) {
             val totalWeight = row.sumOf { it.weight.toDouble() }.toFloat()
             val usable = w - hGap * (row.size + 1)
@@ -152,7 +172,7 @@ class KeyboardView(context: Context) : View(context) {
         val unitH = rowHeight + vGap
         for (gk in gridKeys) {
             val left = hGap + gk.col * unitW
-            val top = topPad + gk.row * unitH
+            val top = topPad + topOffset + gk.row * unitH
             val right = left + gk.wCols * unitW - hGap
             val bottom = top + gk.hRows * unitH - vGap
             keyRects.add(gk.key to RectF(left, top, right, bottom))
@@ -167,6 +187,7 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         canvas.drawColor(theme.background)
+        drawSuggestions(canvas)
         hintPaint.color = theme.hint
         for ((k, rect) in keyRects) {
             val special = k.code != KeyCode.CHAR
@@ -197,6 +218,37 @@ class KeyboardView(context: Context) : View(context) {
         }
     }
 
+    private fun drawSuggestions(canvas: Canvas) {
+        if (suggestions.isEmpty()) return
+        val cellW = width.toFloat() / suggestions.size
+        // подсветка нажатой подсказки
+        if (suggDownIndex in suggestions.indices) {
+            keyPaint.color = theme.keyPressed
+            val l = cellW * suggDownIndex + hGap
+            val r = cellW * (suggDownIndex + 1) - hGap
+            canvas.drawRoundRect(RectF(l, topPad, r, suggBarH - dp(2f)), corner, corner, keyPaint)
+        }
+        textPaint.textSize = dp(15f)
+        val ty = suggBarH / 2f - (textPaint.ascent() + textPaint.descent()) / 2f
+        for (i in suggestions.indices) {
+            if (i > 0) {
+                keyPaint.color = theme.keySpecial
+                val x = cellW * i
+                canvas.drawRect(x - dp(0.5f), suggBarH * 0.2f, x + dp(0.5f), suggBarH * 0.8f, keyPaint)
+            }
+            val label = suggestions[i]
+            textPaint.color = if (i == suggDownIndex) theme.textOnAccent else theme.text
+            textPaint.typeface = fontFor(label)
+            canvas.drawText(label, cellW * (i + 0.5f), ty, textPaint)
+        }
+    }
+
+    private fun suggIndexAt(x: Float): Int {
+        if (suggestions.isEmpty()) return -1
+        val cellW = width.toFloat() / suggestions.size
+        return (x / cellW).toInt().coerceIn(0, suggestions.size - 1)
+    }
+
     private fun drawPreview(canvas: Canvas, k: Key, rect: RectF) {
         val pw = rect.width().coerceAtLeast(dp(40f))
         val ph = dp(52f)
@@ -223,6 +275,12 @@ class KeyboardView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                if (suggestions.isNotEmpty() && event.y < topOffset) {
+                    suggDownIndex = suggIndexAt(event.x)
+                    downKey = null
+                    invalidate()
+                    return true
+                }
                 val hit = keyAt(event.x, event.y)
                 downKey = hit?.first
                 pressedRect = hit?.second
@@ -262,6 +320,12 @@ class KeyboardView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(longPressRunnable)
                 stopDeleteRepeat()
+                if (suggDownIndex >= 0) {
+                    val word = suggestions.getOrNull(suggDownIndex)
+                    suggDownIndex = -1
+                    if (word != null) listener?.onSuggestionPicked(word)
+                    return true
+                }
                 if (popupActive) {
                     commitPopupSelection()
                     dismissPopup()
@@ -413,6 +477,7 @@ class KeyboardView(context: Context) : View(context) {
         previewKey = null
         downKey = null
         spaceSwipeActive = false
+        suggDownIndex = -1
         invalidate()
     }
 

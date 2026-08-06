@@ -92,14 +92,19 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         kbView.isCapsLock = capsLock
         if (layer == Layer.NUMBERS) kbView.setGrid(Layouts.numbersGrid)
         else kbView.setRows(currentRows())
+        updateSuggestions()
     }
 
     override fun onCharCommit(text: String) {
         val ic = currentInputConnection ?: return
+        val isLetter = text.length == 1 && text[0].isLetter()
+        // На границе слова (не буква) — запоминаем только что набранное слово.
+        if (!isLetter) learnCurrentWord()
         // После точки автоматически ставим пробел (только в буквенном режиме).
         if (text == "." && layer == Layer.ALPHA) ic.commitText(". ", 1)
         else ic.commitText(text, 1)
         maybeAutoCaps() // сбрасывает разовый Shift и включает заглавную где нужно
+        updateSuggestions()
     }
 
     override fun onCursorMove(steps: Int) {
@@ -109,6 +114,40 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
             ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
             ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
         }
+        updateSuggestions()
+    }
+
+    override fun onSuggestionPicked(word: String) {
+        val ic = currentInputConnection ?: return
+        val cur = currentWord()
+        val out = if (cur.isNotEmpty() && cur[0].isUpperCase())
+            word.replaceFirstChar { it.uppercase() } else word
+        if (cur.isNotEmpty()) ic.deleteSurroundingText(cur.length, 0)
+        ic.commitText("$out ", 1)
+        WordStore.learn(this, word)
+        maybeAutoCaps()
+        updateSuggestions()
+    }
+
+    /** Текущее незавершённое слово перед курсором (хвост из букв). */
+    private fun currentWord(): String {
+        val before = currentInputConnection?.getTextBeforeCursor(48, 0)?.toString() ?: return ""
+        var i = before.length
+        while (i > 0 && before[i - 1].isLetter()) i--
+        return before.substring(i)
+    }
+
+    private fun learnCurrentWord() {
+        val w = currentWord()
+        if (w.isNotEmpty()) WordStore.learn(this, w)
+    }
+
+    private fun updateSuggestions() {
+        if (!::kbView.isInitialized) return
+        if (layer != Layer.ALPHA) { kbView.setSuggestions(emptyList()); return }
+        val w = currentWord()
+        val list = if (w.isNotEmpty()) WordStore.suggest(this, w, 3) else emptyList()
+        kbView.setSuggestions(list)
     }
 
     override fun onLanguagePicker() {
@@ -123,13 +162,15 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
                 if (selected.isNullOrEmpty()) ic.deleteSurroundingText(1, 0)
                 else ic.commitText("", 1)
                 maybeAutoCaps()
+                updateSuggestions()
             }
             KeyCode.SHIFT -> toggleShift()
             KeyCode.SPACE -> {
                 handleSpace(ic)
                 maybeAutoCaps()
+                updateSuggestions()
             }
-            KeyCode.ENTER -> { handleEnter(ic); maybeAutoCaps() }
+            KeyCode.ENTER -> { learnCurrentWord(); handleEnter(ic); maybeAutoCaps(); updateSuggestions() }
             KeyCode.SYMBOLS -> { layer = Layer.SYMBOLS; applyLayout() }
             KeyCode.SYMBOLS2 -> { layer = Layer.SYMBOLS2; applyLayout() }
             KeyCode.NUMBERS -> { layer = Layer.NUMBERS; applyLayout() }
@@ -164,6 +205,7 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
 
     /** Пробел; двойной пробел подряд после слова превращается в «. ». */
     private fun handleSpace(ic: InputConnection) {
+        learnCurrentWord()
         if (layer == Layer.ALPHA) {
             val before = ic.getTextBeforeCursor(2, 0)?.toString() ?: ""
             if (before.length == 2 && before[1] == ' ' && before[0].isLetterOrDigit()) {
