@@ -1,6 +1,8 @@
 package com.zairxon.uzkeyboard
 
 import android.inputmethodservice.InputMethodService
+import android.text.InputType
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
@@ -8,6 +10,7 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
+import kotlin.math.abs
 
 /** The system keyboard service. Owns language / layer / shift state. */
 class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
@@ -61,7 +64,20 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
             kbView.theme = Themes.current(this) // подхватить смену темы из приложения
             applyLayout()
             applyWindowColors()
+            maybeAutoCaps() // заглавная в начале ввода
         }
+    }
+
+    /** Авто-регистр: заглавная в начале текста и после «. ! ?». */
+    private fun maybeAutoCaps() {
+        if (!::kbView.isInitialized) return
+        if (capsLock || layer != Layer.ALPHA) return
+        val caps = currentInputConnection?.getCursorCapsMode(
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        ) ?: 0
+        shifted = caps != 0
+        kbView.isShifted = shifted
+        kbView.invalidate()
     }
 
     private fun currentRows() = when (layer) {
@@ -79,11 +95,19 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     }
 
     override fun onCharCommit(text: String) {
-        currentInputConnection?.commitText(text, 1)
-        if (shifted && !capsLock) {
-            shifted = false
-            kbView.isShifted = false
-            kbView.invalidate()
+        val ic = currentInputConnection ?: return
+        // После точки автоматически ставим пробел (только в буквенном режиме).
+        if (text == "." && layer == Layer.ALPHA) ic.commitText(". ", 1)
+        else ic.commitText(text, 1)
+        maybeAutoCaps() // сбрасывает разовый Shift и включает заглавную где нужно
+    }
+
+    override fun onCursorMove(steps: Int) {
+        val ic = currentInputConnection ?: return
+        val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
+        repeat(abs(steps)) {
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
         }
     }
 
@@ -98,18 +122,23 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
                 val selected = ic.getSelectedText(0)
                 if (selected.isNullOrEmpty()) ic.deleteSurroundingText(1, 0)
                 else ic.commitText("", 1)
+                maybeAutoCaps()
             }
             KeyCode.SHIFT -> toggleShift()
-            KeyCode.SPACE -> ic.commitText(" ", 1)
-            KeyCode.ENTER -> handleEnter(ic)
+            KeyCode.SPACE -> {
+                handleSpace(ic)
+                maybeAutoCaps()
+            }
+            KeyCode.ENTER -> { handleEnter(ic); maybeAutoCaps() }
             KeyCode.SYMBOLS -> { layer = Layer.SYMBOLS; applyLayout() }
             KeyCode.SYMBOLS2 -> { layer = Layer.SYMBOLS2; applyLayout() }
             KeyCode.NUMBERS -> { layer = Layer.NUMBERS; applyLayout() }
-            KeyCode.ALPHA -> { layer = Layer.ALPHA; applyLayout() }
+            KeyCode.ALPHA -> { layer = Layer.ALPHA; applyLayout(); maybeAutoCaps() }
             KeyCode.LANGUAGE -> {
                 language = if (language == Lang.EN) Lang.RU else Lang.EN
                 layer = Layer.ALPHA
                 applyLayout()
+                maybeAutoCaps()
             }
             KeyCode.CHAR -> Unit
         }
@@ -131,6 +160,19 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         kbView.isShifted = shifted
         kbView.isCapsLock = capsLock
         kbView.invalidate()
+    }
+
+    /** Пробел; двойной пробел подряд после слова превращается в «. ». */
+    private fun handleSpace(ic: InputConnection) {
+        if (layer == Layer.ALPHA) {
+            val before = ic.getTextBeforeCursor(2, 0)?.toString() ?: ""
+            if (before.length == 2 && before[1] == ' ' && before[0].isLetterOrDigit()) {
+                ic.deleteSurroundingText(1, 0)
+                ic.commitText(". ", 1)
+                return
+            }
+        }
+        ic.commitText(" ", 1)
     }
 
     private fun handleEnter(ic: InputConnection) {

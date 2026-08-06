@@ -14,6 +14,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.TextView
+import kotlin.math.abs
 import kotlin.math.ceil
 
 /**
@@ -26,6 +27,7 @@ class KeyboardView(context: Context) : View(context) {
         fun onCharCommit(text: String)
         fun onSpecial(code: KeyCode)
         fun onLanguagePicker()
+        fun onCursorMove(steps: Int)
     }
 
     var listener: Listener? = null
@@ -75,6 +77,11 @@ class KeyboardView(context: Context) : View(context) {
     private var longPressFired = false
     private val longPressRunnable = Runnable { fireLongPress() }
     private var deleteRunnable: Runnable? = null
+
+    // Скольжение по пробелу для перемещения курсора
+    private var spaceSwipeActive = false
+    private var spaceStartX = 0f
+    private var spaceLastStepX = 0f
 
     // Long-press alternates popup
     private var popupWindow: PopupWindow? = null
@@ -221,6 +228,11 @@ class KeyboardView(context: Context) : View(context) {
                 pressedRect = hit?.second
                 previewKey = downKey
                 longPressFired = false
+                spaceSwipeActive = false
+                if (downKey?.code == KeyCode.SPACE) {
+                    spaceStartX = event.x
+                    spaceLastStepX = event.x
+                }
                 invalidate()
                 if (downKey != null) handler.postDelayed(longPressRunnable, LONGPRESS_MS)
                 return true
@@ -228,6 +240,9 @@ class KeyboardView(context: Context) : View(context) {
             MotionEvent.ACTION_MOVE -> {
                 if (popupActive) {
                     updatePopupSelection(event.rawX)
+                } else if (downKey?.code == KeyCode.SPACE &&
+                    (spaceSwipeActive || abs(event.x - spaceStartX) > dp(8f))) {
+                    handleSpaceSwipe(event.x)
                 } else {
                     val hit = keyAt(event.x, event.y)
                     // Long-press stays armed while the finger remains on the SAME key
@@ -250,7 +265,7 @@ class KeyboardView(context: Context) : View(context) {
                 if (popupActive) {
                     commitPopupSelection()
                     dismissPopup()
-                } else if (!longPressFired) {
+                } else if (!longPressFired && !spaceSwipeActive) {
                     downKey?.let { handleTap(it) }
                 }
                 clearPressed()
@@ -397,7 +412,23 @@ class KeyboardView(context: Context) : View(context) {
         pressedRect = null
         previewKey = null
         downKey = null
+        spaceSwipeActive = false
         invalidate()
+    }
+
+    /** Долгое скольжение по пробелу двигает курсор (шаг ≈ 11dp = 1 позиция). */
+    private fun handleSpaceSwipe(x: Float) {
+        if (!spaceSwipeActive) {
+            spaceSwipeActive = true
+            handler.removeCallbacks(longPressRunnable)
+            previewKey = null
+            invalidate()
+        }
+        val step = dp(11f)
+        var moved = 0
+        while (x - spaceLastStepX >= step) { moved++; spaceLastStepX += step }
+        while (x - spaceLastStepX <= -step) { moved--; spaceLastStepX -= step }
+        if (moved != 0) listener?.onCursorMove(moved)
     }
 
     override fun onDetachedFromWindow() {
