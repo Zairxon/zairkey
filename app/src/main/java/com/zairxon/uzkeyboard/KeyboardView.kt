@@ -72,6 +72,11 @@ class KeyboardView(context: Context) : View(context) {
     private fun fontFor(text: String): Typeface =
         if (text.isNotEmpty() && text.all { glyphPaint.hasGlyph(it.toString()) }) serifFont else interFont
 
+    /** Комбинирующие знаки (арабские огласовки) рисуем на пунктирном круге ◌, иначе не видны. */
+    private fun withDottedCircle(s: String): String =
+        if (s.length == 1 && Character.getType(s[0]) == Character.NON_SPACING_MARK.toInt())
+            "◌$s" else s
+
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
@@ -210,7 +215,7 @@ class KeyboardView(context: Context) : View(context) {
             canvas.drawText(label, rect.centerX(), ty, textPaint)
 
             if (k.code == KeyCode.CHAR && k.alternates.isNotEmpty()) {
-                canvas.drawText(k.alternates[0], rect.right - dp(6f), rect.top + dp(14f), hintPaint)
+                canvas.drawText(withDottedCircle(k.alternates[0]), rect.right - dp(6f), rect.top + dp(14f), hintPaint)
             }
         }
         when {
@@ -514,7 +519,8 @@ class KeyboardView(context: Context) : View(context) {
                 keyPaint.color = theme.accent
                 canvas.drawRoundRect(cell, corner, corner, keyPaint)
             }
-            val shown = if (isShifted || isCapsLock) popupAlternates[i].uppercase() else popupAlternates[i]
+            val raw = if (isShifted || isCapsLock) popupAlternates[i].uppercase() else popupAlternates[i]
+            val shown = withDottedCircle(raw)
             textPaint.color = if (i == popupIndex) theme.textOnAccent else theme.text
             textPaint.textSize = dp(17f)
             textPaint.typeface = fontFor(shown)
