@@ -93,14 +93,12 @@ class KeyboardView(context: Context) : View(context) {
     private var spaceStartX = 0f
     private var spaceLastStepX = 0f
 
-    // Long-press alternates popup
-    private var popupWindow: PopupWindow? = null
+    // Long-press alternates popup — рисуется на канве (PopupWindow в IME часто не виден)
     private var popupActive = false
     private var popupAlternates: List<String> = emptyList()
     private var popupIndex = 0
-    private var popupOriginX = 0f
-    private var popupCellW = 0f
-    private val altViews = ArrayList<TextView>()
+    private val popupCells = ArrayList<RectF>()
+    private var altPreview: String? = null // превью вставленной узбекской буквы
 
     fun setRows(newRows: List<List<Key>>) {
         gridKeys = emptyList()
@@ -209,9 +207,11 @@ class KeyboardView(context: Context) : View(context) {
                 canvas.drawText(k.alternates[0], rect.right - dp(6f), rect.top + dp(14f), hintPaint)
             }
         }
-        previewKey?.let { pk ->
-            pressedRect?.let { pr ->
-                if (pk.code == KeyCode.CHAR && !popupActive) drawPreview(canvas, pk, pr)
+        when {
+            popupActive -> drawAltPopup(canvas)
+            altPreview != null -> drawAltPreview(canvas)
+            else -> previewKey?.let { pk ->
+                pressedRect?.let { pr -> if (pk.code == KeyCode.CHAR) drawPreview(canvas, pk, pr) }
             }
         }
     }
@@ -299,7 +299,7 @@ class KeyboardView(context: Context) : View(context) {
                 val mx = event.getX(pi)
                 val my = event.getY(pi)
                 if (popupActive) {
-                    updatePopupSelection(event.rawX)
+                    updatePopupSelection(mx)
                 } else if (downKey?.code == KeyCode.SPACE &&
                     (spaceSwipeActive || abs(mx - spaceStartX) > dp(8f))) {
                     handleSpaceSwipe(mx)
@@ -338,7 +338,7 @@ class KeyboardView(context: Context) : View(context) {
             MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(longPressRunnable)
                 stopDeleteRepeat()
-                dismissPopup()
+                closeAltPopup()
                 clearPressed()
                 downPointerId = -1
                 return true
@@ -375,7 +375,7 @@ class KeyboardView(context: Context) : View(context) {
         stopDeleteRepeat()
         if (popupActive) {
             commitPopupSelection()
-            dismissPopup()
+            closeAltPopup()
         } else if (!longPressFired && !spaceSwipeActive) {
             downKey?.let { handleTap(it) }
         }
@@ -396,11 +396,17 @@ class KeyboardView(context: Context) : View(context) {
         when {
             k.code == KeyCode.DELETE -> { longPressFired = true; startDeleteRepeat() }
             k.code == KeyCode.LANGUAGE -> { longPressFired = true; listener?.onLanguagePicker() }
-            k.code == KeyCode.CHAR && k.alternates.isNotEmpty() -> {
-                // и одна альтернатива (узбекские буквы), и несколько (точка/запятая/валюты)
-                // показываем попап над клавишей — чтобы букву/символ было видно; коммит на отпускании
+            k.code == KeyCode.CHAR && k.alternates.size == 1 -> {
+                // узбекская буква — вставляем сразу на долгом нажатии + показываем её над клавишей
                 longPressFired = true
-                pressedRect?.let { showPopup(k, it) }
+                commitChar(k.alternates[0])
+                altPreview = k.alternates[0]
+                invalidate()
+            }
+            k.code == KeyCode.CHAR && k.alternates.size > 1 -> {
+                // несколько символов (точка/запятая/валюты) — попап выбора над клавишей
+                longPressFired = true
+                pressedRect?.let { openAltPopup(k, it) }
             }
             else -> longPressFired = false // no long action: still type on release
         }
@@ -422,91 +428,94 @@ class KeyboardView(context: Context) : View(context) {
         deleteRunnable = null
     }
 
-    private fun showPopup(k: Key, rect: RectF) {
+    /** Открыть попап альтернатив (рисуется на канве над клавишей). */
+    private fun openAltPopup(k: Key, keyRect: RectF) {
         popupAlternates = k.alternates
         popupActive = true
-        val cellW = dp(46f)
-        val cellH = dp(52f)
-        val pad = dp(4f)
-        popupCellW = cellW
-
-        val container = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            background = GradientDrawable().apply {
-                setColor(theme.popupBg)
-                cornerRadius = corner
-                setStroke(dp(1.5f).toInt(), theme.accent) // контрастная рамка — чтобы попап был виден
-            }
-            elevation = dp(12f)
-            setPadding(pad.toInt(), pad.toInt(), pad.toInt(), pad.toInt())
-        }
-        altViews.clear()
-        for (alt in popupAlternates) {
-            val shown = if (isShifted || isCapsLock) alt.uppercase() else alt
-            val tv = TextView(context).apply {
-                text = shown
-                setTextColor(theme.text)
-                textSize = 20f
-                typeface = fontFor(shown)
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(cellW.toInt(), cellH.toInt())
-            }
-            altViews.add(tv)
-            container.addView(tv)
-        }
-
-        val pw = PopupWindow(
-            container,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            false
-        )
-        pw.isClippingEnabled = false
-        popupWindow = pw
-
-        val loc = IntArray(2)
-        getLocationOnScreen(loc)
-        val totalW = cellW * popupAlternates.size + pad * 2
-        val screenW = resources.displayMetrics.widthPixels.toFloat()
-        var px = loc[0] + rect.centerX() - totalW / 2f
-        px = px.coerceIn(0f, (screenW - totalW).coerceAtLeast(0f))
-        val py = loc[1] + rect.top - cellH - dp(10f)
-        popupOriginX = px + pad
-        pw.showAtLocation(this, Gravity.NO_GRAVITY, px.toInt(), py.toInt())
-
         popupIndex = 0
-        highlightPopup()
+        popupCells.clear()
+        val cellW = dp(44f)
+        val cellH = dp(46f)
+        val n = popupAlternates.size
+        val totalW = cellW * n
+        val left = (keyRect.centerX() - totalW / 2f)
+            .coerceIn(hGap, (width - totalW - hGap).coerceAtLeast(hGap))
+        var top = keyRect.top - cellH - dp(8f)
+        if (top < 0f) top = keyRect.bottom + dp(8f) // не влезает сверху — покажем снизу
+        for (i in 0 until n) {
+            val l = left + i * cellW
+            popupCells.add(RectF(l, top, l + cellW, top + cellH))
+        }
+        invalidate()
     }
 
-    private fun updatePopupSelection(rawX: Float) {
-        if (popupAlternates.isEmpty()) return
-        val idx = ((rawX - popupOriginX) / popupCellW).toInt()
-            .coerceIn(0, popupAlternates.size - 1)
+    private fun updatePopupSelection(x: Float) {
+        if (popupCells.isEmpty()) return
+        val first = popupCells.first()
+        val idx = (((x - first.left) / first.width()).toInt())
+            .coerceIn(0, popupCells.size - 1)
         if (idx != popupIndex) {
             popupIndex = idx
-            highlightPopup()
-        }
-    }
-
-    private fun highlightPopup() {
-        altViews.forEachIndexed { i, tv ->
-            val selected = i == popupIndex
-            tv.setBackgroundColor(if (selected) theme.popupSelected else Color.TRANSPARENT)
-            tv.setTextColor(if (selected) theme.textOnAccent else theme.text)
+            invalidate()
         }
     }
 
     private fun commitPopupSelection() {
-        val alt = popupAlternates.getOrNull(popupIndex) ?: return
-        commitChar(alt)
+        popupAlternates.getOrNull(popupIndex)?.let { commitChar(it) }
     }
 
-    private fun dismissPopup() {
-        popupWindow?.dismiss()
-        popupWindow = null
+    private fun closeAltPopup() {
         popupActive = false
         popupAlternates = emptyList()
-        altViews.clear()
+        popupCells.clear()
+    }
+
+    private fun drawAltPopup(canvas: Canvas) {
+        if (popupCells.isEmpty()) return
+        val bg = RectF(
+            popupCells.first().left - dp(4f), popupCells.first().top - dp(4f),
+            popupCells.last().right + dp(4f), popupCells.first().bottom + dp(4f)
+        )
+        keyPaint.color = theme.popupBg
+        canvas.drawRoundRect(bg, corner, corner, keyPaint)
+        keyPaint.color = theme.accent
+        keyPaint.style = Paint.Style.STROKE
+        keyPaint.strokeWidth = dp(1.5f)
+        canvas.drawRoundRect(bg, corner, corner, keyPaint)
+        keyPaint.style = Paint.Style.FILL
+        for (i in popupCells.indices) {
+            val cell = popupCells[i]
+            if (i == popupIndex) {
+                keyPaint.color = theme.accent
+                canvas.drawRoundRect(cell, corner, corner, keyPaint)
+            }
+            val shown = if (isShifted || isCapsLock) popupAlternates[i].uppercase() else popupAlternates[i]
+            textPaint.color = if (i == popupIndex) theme.textOnAccent else theme.text
+            textPaint.textSize = dp(20f)
+            textPaint.typeface = fontFor(shown)
+            val ty = cell.centerY() - (textPaint.ascent() + textPaint.descent()) / 2f
+            canvas.drawText(shown, cell.centerX(), ty, textPaint)
+        }
+    }
+
+    private fun drawAltPreview(canvas: Canvas) {
+        val text = altPreview ?: return
+        val rect = pressedRect ?: return
+        val pw = rect.width().coerceAtLeast(dp(40f))
+        val ph = dp(48f)
+        val cx = rect.centerX()
+        val left = (cx - pw / 2f).coerceIn(0f, width - pw)
+        var top = rect.top - ph - dp(4f)
+        if (top < 0f) top = rect.top + dp(2f)
+        val pr = RectF(left, top, left + pw, top + ph)
+        previewPaint.color = theme.accent
+        canvas.drawRoundRect(pr, corner, corner, previewPaint)
+        val shown = if (isShifted || isCapsLock) text.uppercase() else text
+        textPaint.color = theme.textOnAccent
+        textPaint.textSize = dp(24f)
+        textPaint.typeface = fontFor(shown)
+        val ty = pr.centerY() - (textPaint.ascent() + textPaint.descent()) / 2f
+        canvas.drawText(shown, cx, ty, textPaint)
     }
 
     private fun clearPressed() {
@@ -515,6 +524,7 @@ class KeyboardView(context: Context) : View(context) {
         downKey = null
         spaceSwipeActive = false
         suggDownIndex = -1
+        altPreview = null
         invalidate()
     }
 
@@ -536,7 +546,7 @@ class KeyboardView(context: Context) : View(context) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         handler.removeCallbacksAndMessages(null)
-        dismissPopup()
+        closeAltPopup()
     }
 
     companion object {
