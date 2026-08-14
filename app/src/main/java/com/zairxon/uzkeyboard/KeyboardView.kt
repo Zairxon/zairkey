@@ -45,7 +45,7 @@ class KeyboardView(context: Context) : View(context) {
     private val density = resources.displayMetrics.density
     private fun dp(v: Float) = v * density
 
-    private val rowHeight = dp(40f)
+    private val rowHeight = dp(36f)
     private val vGap = dp(5f)
     private val hGap = dp(4f)
     private val topPad = dp(5f)
@@ -434,8 +434,8 @@ class KeyboardView(context: Context) : View(context) {
         popupActive = true
         popupIndex = 0
         popupCells.clear()
-        val cellW = dp(44f)
-        val cellH = dp(46f)
+        val cellW = dp(36f)
+        val cellH = dp(40f)
         val n = popupAlternates.size
         val totalW = cellW * n
         val left = (keyRect.centerX() - totalW / 2f)
@@ -491,7 +491,7 @@ class KeyboardView(context: Context) : View(context) {
             }
             val shown = if (isShifted || isCapsLock) popupAlternates[i].uppercase() else popupAlternates[i]
             textPaint.color = if (i == popupIndex) theme.textOnAccent else theme.text
-            textPaint.textSize = dp(20f)
+            textPaint.textSize = dp(17f)
             textPaint.typeface = fontFor(shown)
             val ty = cell.centerY() - (textPaint.ascent() + textPaint.descent()) / 2f
             canvas.drawText(shown, cell.centerX(), ty, textPaint)

@@ -23,8 +23,9 @@ object Layouts {
     private val toNum = Key("123", code = KeyCode.NUMBERS, weight = 1.3f)
     private val toAbc = Key("ABC", code = KeyCode.ALPHA, weight = 1.5f)
 
-    private val comma = Key(",", alternates = listOf(".", "?", "!", ":", ";", "'", "-"))
-    private val period = Key(".", alternates = listOf(",", "?", "!", ":", ";", "-", "…"))
+    // Разные наборы для точки и запятой (без повторов между ними).
+    private val period = Key(".", alternates = listOf("?", "!", "…", ":", "-", "\"", "%"))
+    private val comma = Key(",", alternates = listOf(";", "'", "@", "&", "_", "(", ")"))
 
     // Верхний цифровой ряд для основной клавиатуры (цифры перенесены из символов).
     private val digitsRow = listOf(

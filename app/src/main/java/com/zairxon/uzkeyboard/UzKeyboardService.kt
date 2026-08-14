@@ -24,6 +24,18 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     private var shifted = false
     private var capsLock = false
     private var lastShiftTime = 0L
+    private var spell: SpellChecker? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        spell = SpellChecker(this) { word, corrections -> onSpell(word, corrections) }
+        spell?.start(this)
+    }
+
+    override fun onDestroy() {
+        spell?.close()
+        super.onDestroy()
+    }
 
     override fun onCreateInputView(): View {
         kbView = KeyboardView(this)
@@ -171,6 +183,18 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         val list = if (cur.isNotEmpty() || prev.isNotEmpty())
             WordStore.suggest(this, prev, cur, 3) else emptyList()
         kbView.setSuggestions(list)
+        if (cur.length >= 2) spell?.query(cur) // орфография — асинхронно, добавит исправления
+    }
+
+    /** Пришли исправления орфографии (главный поток) — вливаем в панель подсказок. */
+    private fun onSpell(word: String, corrections: List<String>) {
+        if (!::kbView.isInitialized || layer != Layer.ALPHA || corrections.isEmpty()) return
+        val (prev, cur) = contextWords()
+        if (!cur.equals(word, ignoreCase = true)) return // слово уже сменилось
+        val merged = LinkedHashSet<String>()
+        WordStore.suggest(this, prev, cur, 3).forEach { merged.add(it) }
+        for (c in corrections) { if (merged.size >= 3) break; merged.add(c) }
+        kbView.setSuggestions(merged.toList())
     }
 
     override fun onLanguagePicker() {
