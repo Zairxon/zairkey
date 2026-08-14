@@ -24,17 +24,10 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     private var shifted = false
     private var capsLock = false
     private var lastShiftTime = 0L
-    private var spell: SpellChecker? = null
 
     override fun onCreate() {
         super.onCreate()
-        spell = SpellChecker(this) { word, corrections -> onSpell(word, corrections) }
-        spell?.start(this)
-    }
-
-    override fun onDestroy() {
-        spell?.close()
-        super.onDestroy()
+        DictStore.load(this) // встроенные словари ru/en/uz — грузятся в фоне
     }
 
     override fun onCreateInputView(): View {
@@ -180,20 +173,12 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         if (!::kbView.isInitialized) return
         if (layer != Layer.ALPHA) { kbView.setSuggestions(emptyList()); return }
         val (prev, cur) = contextWords()
-        val list = if (cur.isNotEmpty() || prev.isNotEmpty())
-            WordStore.suggest(this, prev, cur, 3) else emptyList()
-        kbView.setSuggestions(list)
-        if (cur.length >= 2) spell?.query(cur) // орфография — асинхронно, добавит исправления
-    }
-
-    /** Пришли исправления орфографии (главный поток) — вливаем в панель подсказок. */
-    private fun onSpell(word: String, corrections: List<String>) {
-        if (!::kbView.isInitialized || layer != Layer.ALPHA || corrections.isEmpty()) return
-        val (prev, cur) = contextWords()
-        if (!cur.equals(word, ignoreCase = true)) return // слово уже сменилось
+        // Сначала выученные слова (персональные), затем встроенный словарь по префиксу.
         val merged = LinkedHashSet<String>()
-        WordStore.suggest(this, prev, cur, 3).forEach { merged.add(it) }
-        for (c in corrections) { if (merged.size >= 3) break; merged.add(c) }
+        if (cur.isNotEmpty() || prev.isNotEmpty())
+            WordStore.suggest(this, prev, cur, 3).forEach { merged.add(it) }
+        if (cur.isNotEmpty())
+            DictStore.suggest(cur, 3).forEach { if (merged.size < 3) merged.add(it) }
         kbView.setSuggestions(merged.toList())
     }
 
