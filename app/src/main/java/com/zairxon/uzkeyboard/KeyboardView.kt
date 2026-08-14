@@ -30,6 +30,7 @@ class KeyboardView(context: Context) : View(context) {
         fun onLanguagePicker()
         fun onCursorMove(steps: Int)
         fun onSuggestionPicked(word: String)
+        fun onSuggestionDelete(word: String)
     }
 
     var listener: Listener? = null
@@ -56,6 +57,10 @@ class KeyboardView(context: Context) : View(context) {
     private var suggestions: List<String> = emptyList()
     private val suggBarH = dp(36f)
     private var suggDownIndex = -1
+    private var suggLongFired = false
+    private val suggLongRunnable = Runnable {
+        suggestions.getOrNull(suggDownIndex)?.let { suggLongFired = true; listener?.onSuggestionDelete(it) }
+    }
     private val topOffset get() = suggBarH
 
     private val serifFont = Fonts.serif(context)
@@ -275,8 +280,11 @@ class KeyboardView(context: Context) : View(context) {
             MotionEvent.ACTION_DOWN -> {
                 if (suggestions.isNotEmpty() && event.y < topOffset) {
                     suggDownIndex = suggIndexAt(event.x)
+                    suggLongFired = false
                     downKey = null
                     invalidate()
+                    if (suggDownIndex in suggestions.indices)
+                        handler.postDelayed(suggLongRunnable, LONGPRESS_MS + 250)
                     return true
                 }
                 downPointerId = event.getPointerId(0)
@@ -294,6 +302,7 @@ class KeyboardView(context: Context) : View(context) {
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (suggDownIndex >= 0) return true // палец на панели подсказок — игнор клавиш
                 val pi = if (downPointerId >= 0) event.findPointerIndex(downPointerId) else 0
                 if (pi < 0) return true
                 val mx = event.getX(pi)
@@ -326,8 +335,10 @@ class KeyboardView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_UP -> {
                 if (suggDownIndex >= 0) {
-                    val word = suggestions.getOrNull(suggDownIndex)
+                    handler.removeCallbacks(suggLongRunnable)
+                    val word = if (suggLongFired) null else suggestions.getOrNull(suggDownIndex)
                     suggDownIndex = -1
+                    suggLongFired = false
                     if (word != null) listener?.onSuggestionPicked(word)
                     return true
                 }
@@ -337,6 +348,9 @@ class KeyboardView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(longPressRunnable)
+                handler.removeCallbacks(suggLongRunnable)
+                suggDownIndex = -1
+                suggLongFired = false
                 stopDeleteRepeat()
                 closeAltPopup()
                 clearPressed()

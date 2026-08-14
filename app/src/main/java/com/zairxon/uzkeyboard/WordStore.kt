@@ -19,9 +19,12 @@ object WordStore {
     private const val MAX_BI_LINES = 4000
     private const val MAX_NEXT_PER_WORD = 8
 
+    private const val KEY_BLOCK = "blocked_words"
+
     private var loaded = false
     private val uni = HashMap<String, Int>()
     private val bi = HashMap<String, HashMap<String, Int>>()
+    private val blocked = HashSet<String>() // слова, скрытые пользователем (long-press)
 
     private fun ensure(ctx: Context) {
         if (loaded) return
@@ -36,6 +39,24 @@ object WordStore {
             val c = p[2].toIntOrNull() ?: continue
             bi.getOrPut(p[0]) { HashMap() }[p[1]] = c
         }
+        for (w in (sp.getString(KEY_BLOCK, "") ?: "").split('\n')) if (w.isNotEmpty()) blocked.add(w)
+    }
+
+    fun isBlocked(ctx: Context, word: String): Boolean {
+        ensure(ctx)
+        return blocked.contains(word.lowercase())
+    }
+
+    /** Скрыть слово из подсказок навсегда (и забыть выученную частоту). */
+    fun block(ctx: Context, word: String) {
+        ensure(ctx)
+        val w = word.lowercase()
+        blocked.add(w)
+        uni.remove(w)
+        for (m in bi.values) m.remove(w)
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_BLOCK, blocked.joinToString("\n")).apply()
+        save(ctx)
     }
 
     /** Запомнить слово. */
@@ -69,7 +90,7 @@ object WordStore {
         val out = ArrayList<String>()
 
         fun add(word: String) {
-            if (seen.add(word) && out.size < limit) out.add(word)
+            if (word !in blocked && seen.add(word) && out.size < limit) out.add(word)
         }
 
         if (prefix.isEmpty()) {

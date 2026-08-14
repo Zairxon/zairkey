@@ -1,7 +1,6 @@
 package com.zairxon.uzkeyboard
 
 import android.content.Context
-import java.util.zip.GZIPInputStream
 import kotlin.concurrent.thread
 
 /**
@@ -29,7 +28,7 @@ object DictStore {
         val map = HashMap<String, Int>(90_000)
         for (name in FILES) {
             try {
-                GZIPInputStream(ctx.assets.open("dict/$name.txt.gz")).bufferedReader().useLines { seq ->
+                ctx.assets.open("dict/$name.txt").bufferedReader().useLines { seq ->
                     var rank = 0
                     for (line in seq) {
                         val w = line.trim()

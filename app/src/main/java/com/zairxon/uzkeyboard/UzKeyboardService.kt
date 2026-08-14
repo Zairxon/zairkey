@@ -178,8 +178,15 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         if (cur.isNotEmpty() || prev.isNotEmpty())
             WordStore.suggest(this, prev, cur, 3).forEach { merged.add(it) }
         if (cur.isNotEmpty())
-            DictStore.suggest(cur, 3).forEach { if (merged.size < 3) merged.add(it) }
+            DictStore.suggest(cur, 3).forEach {
+                if (merged.size < 3 && !WordStore.isBlocked(this, it)) merged.add(it)
+            }
         kbView.setSuggestions(merged.toList())
+    }
+
+    override fun onSuggestionDelete(word: String) {
+        WordStore.block(this, word) // long-press по подсказке — скрыть слово навсегда
+        updateSuggestions()
     }
 
     override fun onLanguagePicker() {
