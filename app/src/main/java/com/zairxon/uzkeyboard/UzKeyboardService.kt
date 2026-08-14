@@ -7,7 +7,6 @@ import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
-import android.view.inputmethod.InputMethodManager
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowCompat
 import kotlin.math.abs
@@ -15,7 +14,7 @@ import kotlin.math.abs
 /** The system keyboard service. Owns language / layer / shift state. */
 class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
 
-    private enum class Lang { EN, RU }
+    private enum class Lang { EN, RU, AR }
     private enum class Layer { ALPHA, SYMBOLS, SYMBOLS2, NUMBERS }
 
     private lateinit var kbView: KeyboardView
@@ -91,7 +90,11 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     }
 
     private fun currentRows() = when (layer) {
-        Layer.ALPHA -> if (language == Lang.EN) Layouts.enAlpha else Layouts.ruAlpha
+        Layer.ALPHA -> when (language) {
+            Lang.EN -> Layouts.enAlpha
+            Lang.RU -> Layouts.ruAlpha
+            Lang.AR -> Layouts.arAlpha
+        }
         Layer.SYMBOLS -> Layouts.symbols
         Layer.SYMBOLS2 -> Layouts.symbols2
         Layer.NUMBERS -> emptyList()
@@ -189,8 +192,11 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         updateSuggestions()
     }
 
-    override fun onLanguagePicker() {
-        (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)?.showInputMethodPicker()
+    /** Удержание глобуса 3 сек — включить арабскую раскладку. */
+    override fun onLanguageLongPress() {
+        language = Lang.AR
+        layer = Layer.ALPHA
+        applyLayout() // в арабском регистра нет — авто-заглавную не трогаем
     }
 
     override fun onSpecial(code: KeyCode) {
@@ -215,7 +221,12 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
             KeyCode.NUMBERS -> { layer = Layer.NUMBERS; applyLayout() }
             KeyCode.ALPHA -> { layer = Layer.ALPHA; applyLayout(); maybeAutoCaps() }
             KeyCode.LANGUAGE -> {
-                language = if (language == Lang.EN) Lang.RU else Lang.EN
+                // Короткий тап: англ↔рус. Из арабской возвращаемся на англ.
+                language = when (language) {
+                    Lang.EN -> Lang.RU
+                    Lang.RU -> Lang.EN
+                    Lang.AR -> Lang.EN
+                }
                 layer = Layer.ALPHA
                 applyLayout()
                 maybeAutoCaps()

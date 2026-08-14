@@ -61,6 +61,29 @@ object Layouts {
         listOf(toNum, toSym, globe, comma, space, period, enter)
     )
 
+    // ---- Arabic (арабская) ----
+    // Базовые арабские буквы. Начальная/срединная/конечная формы система рисует
+    // САМА при рендеринге (HarfBuzz) — мы вводим только базовые символы Unicode,
+    // это правильный способ (presentation-forms ломали бы поиск и копирование).
+    // Хамза/варианты алифа — по долгому нажатию: ا → أ إ آ ٱ ء, ي → ئ ى, و → ؤ, ل → لا.
+    val arAlpha: List<List<Key>> = listOf(
+        digitsRow,
+        listOf(
+            c("ض"), c("ص"), c("ث"), c("ق"), c("ف"), c("غ"),
+            c("ع"), c("ه", listOf("ة")), c("خ"), c("ح"), c("ج")
+        ),
+        listOf(
+            c("ش"), c("س"), c("ي", listOf("ئ", "ى")), c("ب"), c("ل", listOf("لا")),
+            c("ا", listOf("أ", "إ", "آ", "ٱ", "ء")), c("ت"), c("ن"), c("م"), c("ك"), c("ط")
+        ),
+        listOf(
+            shift,
+            c("ذ"), c("ظ"), c("د"), c("ز"), c("ر"), c("و", listOf("ؤ")), c("ة"), c("ى"), c("ء"),
+            del
+        ),
+        listOf(toNum, toSym, globe, comma, space, period, enter)
+    )
+
     // ---- Symbols page 1 (цифры перенесены в основную клавиатуру) ----
     val symbols: List<List<Key>> = listOf(
         listOf(

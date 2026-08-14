@@ -27,7 +27,8 @@ class KeyboardView(context: Context) : View(context) {
     interface Listener {
         fun onCharCommit(text: String)
         fun onSpecial(code: KeyCode)
-        fun onLanguagePicker()
+        /** Удержание глобуса 3 сек — переключение на арабскую раскладку. */
+        fun onLanguageLongPress()
         fun onCursorMove(steps: Int)
         fun onSuggestionPicked(word: String)
         fun onSuggestionDelete(word: String)
@@ -321,7 +322,7 @@ class KeyboardView(context: Context) : View(context) {
                         previewKey = downKey
                         longPressFired = false
                         invalidate()
-                        if (downKey != null) handler.postDelayed(longPressRunnable, LONGPRESS_MS)
+                        if (downKey != null) handler.postDelayed(longPressRunnable, longDelayFor(downKey))
                     }
                 }
                 return true
@@ -374,8 +375,12 @@ class KeyboardView(context: Context) : View(context) {
             spaceLastStepX = x
         }
         invalidate()
-        if (downKey != null) handler.postDelayed(longPressRunnable, LONGPRESS_MS)
+        if (downKey != null) handler.postDelayed(longPressRunnable, longDelayFor(downKey))
     }
+
+    /** Задержка долгого нажатия: у глобуса — 3 сек (арабская), у остальных — обычная. */
+    private fun longDelayFor(k: Key?) =
+        if (k?.code == KeyCode.LANGUAGE) GLOBE_ARABIC_MS else LONGPRESS_MS
 
     /** Немедленно ввести текущую клавишу как тап (для набора внахлёст). */
     private fun flushTap() {
@@ -409,7 +414,13 @@ class KeyboardView(context: Context) : View(context) {
         val k = downKey ?: return
         when {
             k.code == KeyCode.DELETE -> { longPressFired = true; startDeleteRepeat() }
-            k.code == KeyCode.LANGUAGE -> { longPressFired = true; listener?.onLanguagePicker() }
+            k.code == KeyCode.LANGUAGE -> {
+                // 3 сек удержания глобуса → арабская раскладка. Показываем бабл «ع».
+                longPressFired = true
+                altPreview = "ع"
+                invalidate()
+                listener?.onLanguageLongPress()
+            }
             k.code == KeyCode.CHAR && k.alternates.size == 1 -> {
                 // узбекская буква — вставляем сразу на долгом нажатии + показываем её над клавишей
                 longPressFired = true
@@ -565,6 +576,7 @@ class KeyboardView(context: Context) : View(context) {
 
     companion object {
         private const val LONGPRESS_MS = 300L
+        private const val GLOBE_ARABIC_MS = 3000L
         private const val DELETE_REPEAT_MS = 55L
     }
 }
