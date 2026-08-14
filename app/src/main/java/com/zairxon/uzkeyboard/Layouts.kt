@@ -19,23 +19,30 @@ object Layouts {
     private val space = Key("␣", output = " ", code = KeyCode.SPACE, weight = 4f)
     private val enter = Key("⏎", code = KeyCode.ENTER, weight = 1.8f)
     private val globe = Key("🌐", code = KeyCode.LANGUAGE, weight = 1.2f)
-    private val toSym = Key("?123", code = KeyCode.SYMBOLS, weight = 1.5f)
-    private val toNum = Key("123", code = KeyCode.NUMBERS, weight = 1.5f)
+    private val toSym = Key("?#", code = KeyCode.SYMBOLS, weight = 1.3f)
+    private val toNum = Key("123", code = KeyCode.NUMBERS, weight = 1.3f)
     private val toAbc = Key("ABC", code = KeyCode.ALPHA, weight = 1.5f)
 
     private val comma = Key(",", alternates = listOf(".", "?", "!", ":", ";", "'", "-"))
     private val period = Key(".", alternates = listOf(",", "?", "!", ":", ";", "-", "…"))
 
-    // ---- English (QWERTY) — только буквы, без альтернатив ----
+    // Верхний цифровой ряд для основной клавиатуры (цифры перенесены из символов).
+    private val digitsRow = listOf(
+        c("1"), c("2"), c("3"), c("4"), c("5"), c("6"), c("7"), c("8"), c("9"), c("0")
+    )
+
+    // ---- English (QWERTY) — цифровой ряд + буквы ----
     val enAlpha: List<List<Key>> = listOf(
+        digitsRow,
         listOf(c("q"), c("w"), c("e"), c("r"), c("t"), c("y"), c("u"), c("i"), c("o"), c("p")),
         listOf(c("a"), c("s"), c("d"), c("f"), c("g"), c("h"), c("j"), c("k"), c("l")),
         listOf(shift, c("z"), c("x"), c("c"), c("v"), c("b"), c("n"), c("m"), del),
-        listOf(toSym, globe, comma, space, period, enter)
+        listOf(toNum, toSym, globe, comma, space, period, enter)
     )
 
     // ---- Russian (ЙЦУКЕН) + узбекские буквы по долгому нажатию ----
     val ruAlpha: List<List<Key>> = listOf(
+        digitsRow,
         listOf(
             c("й"), c("ц"), c("у"), c("к"), c("е", listOf("ё")), c("н"),
             c("г", listOf("ғ")), c("ш"), c("щ", listOf("ў")), c("з"),
@@ -50,15 +57,11 @@ object Layouts {
             c("я"), c("ч"), c("с"), c("м"), c("и"), c("т"), c("ь"), c("б"), c("ю"),
             del
         ),
-        listOf(toSym, globe, comma, space, period, enter)
+        listOf(toNum, toSym, globe, comma, space, period, enter)
     )
 
-    // ---- Numbers / symbols page 1 (числовой ряд — без второй цифры) ----
+    // ---- Symbols page 1 (цифры перенесены в основную клавиатуру) ----
     val symbols: List<List<Key>> = listOf(
-        listOf(
-            c("1"), c("2"), c("3"), c("4"), c("5"),
-            c("6"), c("7"), c("8"), c("9"), c("0")
-        ),
         listOf(
             c("@"), c("#", listOf("№")), c("$", listOf("¢", "£", "€", "¥", "₽", "₴")),
             c("%", listOf("‰", "℅")), c("&"), c("-", listOf("_")),

@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -44,7 +45,7 @@ class KeyboardView(context: Context) : View(context) {
     private val density = resources.displayMetrics.density
     private fun dp(v: Float) = v * density
 
-    private val rowHeight = dp(44f)
+    private val rowHeight = dp(40f)
     private val vGap = dp(5f)
     private val hGap = dp(4f)
     private val topPad = dp(5f)
@@ -83,6 +84,7 @@ class KeyboardView(context: Context) : View(context) {
     private var pressedRect: RectF? = null
     private var previewKey: Key? = null
     private var longPressFired = false
+    private var downPointerId = -1
     private val longPressRunnable = Runnable { fireLongPress() }
     private var deleteRunnable: Runnable? = null
 
@@ -277,30 +279,32 @@ class KeyboardView(context: Context) : View(context) {
                     invalidate()
                     return true
                 }
-                val hit = keyAt(event.x, event.y)
-                downKey = hit?.first
-                pressedRect = hit?.second
-                previewKey = downKey
-                longPressFired = false
-                spaceSwipeActive = false
-                if (downKey?.code == KeyCode.SPACE) {
-                    spaceStartX = event.x
-                    spaceLastStepX = event.x
-                }
-                invalidate()
-                if (downKey != null) handler.postDelayed(longPressRunnable, LONGPRESS_MS)
+                downPointerId = event.getPointerId(0)
+                startKey(event.x, event.y)
+                return true
+            }
+            // Второй палец лёг раньше, чем отпущен первый (быстрый набор «внахлёст»):
+            // сразу фиксируем текущую клавишу и начинаем новую — иначе буквы «выпадают».
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (popupActive || spaceSwipeActive || suggDownIndex >= 0) return true
+                flushTap()
+                val idx = event.actionIndex
+                downPointerId = event.getPointerId(idx)
+                startKey(event.getX(idx), event.getY(idx))
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                val pi = if (downPointerId >= 0) event.findPointerIndex(downPointerId) else 0
+                if (pi < 0) return true
+                val mx = event.getX(pi)
+                val my = event.getY(pi)
                 if (popupActive) {
                     updatePopupSelection(event.rawX)
                 } else if (downKey?.code == KeyCode.SPACE &&
-                    (spaceSwipeActive || abs(event.x - spaceStartX) > dp(8f))) {
-                    handleSpaceSwipe(event.x)
+                    (spaceSwipeActive || abs(mx - spaceStartX) > dp(8f))) {
+                    handleSpaceSwipe(mx)
                 } else {
-                    val hit = keyAt(event.x, event.y)
-                    // Long-press stays armed while the finger remains on the SAME key
-                    // (small jitter no longer cancels it). Re-arm only when key changes.
+                    val hit = keyAt(mx, my)
                     if (hit?.first !== downKey) {
                         handler.removeCallbacks(longPressRunnable)
                         downKey = hit?.first
@@ -313,22 +317,22 @@ class KeyboardView(context: Context) : View(context) {
                 }
                 return true
             }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (event.getPointerId(event.actionIndex) == downPointerId) {
+                    commitCurrent()
+                    downPointerId = -1
+                }
+                return true
+            }
             MotionEvent.ACTION_UP -> {
-                handler.removeCallbacks(longPressRunnable)
-                stopDeleteRepeat()
                 if (suggDownIndex >= 0) {
                     val word = suggestions.getOrNull(suggDownIndex)
                     suggDownIndex = -1
                     if (word != null) listener?.onSuggestionPicked(word)
                     return true
                 }
-                if (popupActive) {
-                    commitPopupSelection()
-                    dismissPopup()
-                } else if (!longPressFired && !spaceSwipeActive) {
-                    downKey?.let { handleTap(it) }
-                }
-                clearPressed()
+                commitCurrent()
+                downPointerId = -1
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
@@ -336,10 +340,46 @@ class KeyboardView(context: Context) : View(context) {
                 stopDeleteRepeat()
                 dismissPopup()
                 clearPressed()
+                downPointerId = -1
                 return true
             }
         }
         return true
+    }
+
+    /** Начать отслеживание клавиши под пальцем (общий код для DOWN/POINTER_DOWN). */
+    private fun startKey(x: Float, y: Float) {
+        val hit = keyAt(x, y)
+        downKey = hit?.first
+        pressedRect = hit?.second
+        previewKey = downKey
+        longPressFired = false
+        spaceSwipeActive = false
+        if (downKey?.code == KeyCode.SPACE) {
+            spaceStartX = x
+            spaceLastStepX = x
+        }
+        invalidate()
+        if (downKey != null) handler.postDelayed(longPressRunnable, LONGPRESS_MS)
+    }
+
+    /** Немедленно ввести текущую клавишу как тап (для набора внахлёст). */
+    private fun flushTap() {
+        handler.removeCallbacks(longPressRunnable)
+        if (!longPressFired && !spaceSwipeActive) downKey?.let { handleTap(it) }
+    }
+
+    /** Завершить текущее касание (отпускание): попап / тап / очистка. */
+    private fun commitCurrent() {
+        handler.removeCallbacks(longPressRunnable)
+        stopDeleteRepeat()
+        if (popupActive) {
+            commitPopupSelection()
+            dismissPopup()
+        } else if (!longPressFired && !spaceSwipeActive) {
+            downKey?.let { handleTap(it) }
+        }
+        clearPressed()
     }
 
     private fun handleTap(k: Key) {
@@ -356,13 +396,9 @@ class KeyboardView(context: Context) : View(context) {
         when {
             k.code == KeyCode.DELETE -> { longPressFired = true; startDeleteRepeat() }
             k.code == KeyCode.LANGUAGE -> { longPressFired = true; listener?.onLanguagePicker() }
-            k.code == KeyCode.CHAR && k.alternates.size == 1 -> {
-                // одна альтернатива (узбекские буквы, ё) — вставляем сразу, не ждём отпускания
-                longPressFired = true
-                commitChar(k.alternates[0])
-            }
-            k.code == KeyCode.CHAR && k.alternates.size > 1 -> {
-                // несколько знаков (точка/запятая/валюты) — показываем попап выбора
+            k.code == KeyCode.CHAR && k.alternates.isNotEmpty() -> {
+                // и одна альтернатива (узбекские буквы), и несколько (точка/запятая/валюты)
+                // показываем попап над клавишей — чтобы букву/символ было видно; коммит на отпускании
                 longPressFired = true
                 pressedRect?.let { showPopup(k, it) }
             }
@@ -396,7 +432,12 @@ class KeyboardView(context: Context) : View(context) {
 
         val container = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(theme.popupBg)
+            background = GradientDrawable().apply {
+                setColor(theme.popupBg)
+                cornerRadius = corner
+                setStroke(dp(1.5f).toInt(), theme.accent) // контрастная рамка — чтобы попап был виден
+            }
+            elevation = dp(12f)
             setPadding(pad.toInt(), pad.toInt(), pad.toInt(), pad.toInt())
         }
         altViews.clear()

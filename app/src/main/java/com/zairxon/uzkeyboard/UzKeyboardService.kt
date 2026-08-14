@@ -108,6 +108,11 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         // После точки автоматически ставим пробел (только в буквенном режиме).
         if (text == "." && layer == Layer.ALPHA) ic.commitText(". ", 1)
         else ic.commitText(text, 1)
+        // #7: после ввода символа со страницы символов — вернуться на буквы.
+        if (layer == Layer.SYMBOLS || layer == Layer.SYMBOLS2) {
+            layer = Layer.ALPHA
+            applyLayout()
+        }
         maybeAutoCaps() // сбрасывает разовый Shift и включает заглавную где нужно
         updateSuggestions()
     }
