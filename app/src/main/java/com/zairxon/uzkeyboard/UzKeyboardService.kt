@@ -24,6 +24,10 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     private var capsLock = false
     private var lastShiftTime = 0L
 
+    /** «Фантомный» пробел после выбора слова из подсказок: знак препинания его съедает. */
+    private var autoSpacePending = false
+    private val attachLeft = ".,!?:;)]}»…%٪،؛؟" // знаки, которые липнут к слову (без пробела перед ними)
+
     override fun onCreate() {
         super.onCreate()
         DictStore.load(this) // встроенные словари ru/en/uz — грузятся в фоне
@@ -69,6 +73,7 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         layer = Layer.ALPHA
         shifted = false
         capsLock = false
+        autoSpacePending = false
         if (::kbView.isInitialized) {
             kbView.theme = Themes.current(this) // подхватить смену темы из приложения
             applyLayout()
@@ -111,6 +116,15 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     override fun onCharCommit(text: String) {
         val ic = currentInputConnection ?: return
         val isLetter = text.length == 1 && text[0].isLetter()
+        // После выбора слова из подсказок стоит авто-пробел. Если следующим идёт знак
+        // препинания — убираем этот пробел, чтобы знак прилип к слову («слово,» а не «слово ,»).
+        if (autoSpacePending) {
+            if (text.length == 1 && text[0] in attachLeft &&
+                ic.getTextBeforeCursor(1, 0) == " ") {
+                ic.deleteSurroundingText(1, 0)
+            }
+            autoSpacePending = false
+        }
         // На границе слова (не буква) — запоминаем только что набранное слово.
         if (!isLetter) learnCurrentWord()
         // После точки автоматически ставим пробел (только в буквенном режиме).
@@ -127,6 +141,7 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
 
     override fun onCursorMove(steps: Int) {
         val ic = currentInputConnection ?: return
+        autoSpacePending = false
         val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
         repeat(abs(steps)) {
             ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
@@ -142,6 +157,7 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
             word.replaceFirstChar { it.uppercase() } else word
         if (cur.isNotEmpty()) ic.deleteSurroundingText(cur.length, 0)
         ic.commitText("$out ", 1)
+        autoSpacePending = true // пробел авто — знак препинания следом его уберёт
         WordStore.learn(this, word)
         if (prev.isNotEmpty()) WordStore.learnPair(this, prev, word)
         maybeAutoCaps()
@@ -201,6 +217,7 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
 
     override fun onSpecial(code: KeyCode) {
         val ic = currentInputConnection ?: return
+        autoSpacePending = false // любое спец-действие отменяет ожидание фантомного пробела
         when (code) {
             KeyCode.DELETE -> {
                 val selected = ic.getSelectedText(0)
