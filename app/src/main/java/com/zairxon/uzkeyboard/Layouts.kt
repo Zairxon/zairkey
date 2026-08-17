@@ -35,10 +35,11 @@ object Layouts {
     // ---- Огласовки (харакат) — 3 отдельные клавиши в арабской раскладке ----
     // Tap ставит знак на предыдущую букву (بَ بُ بِ). Редкие огласовки — по долгому
     // нажатию. Метка ◌ — пунктирный круг для наглядности (рисуется в KeyboardView).
-    private val fatha = Key("◌َ", output = "َ", alternates = listOf("ً", "ّ")) // فتحة: танвин фатх, шадда
-    private val damma = Key("◌ُ", output = "ُ", alternates = listOf("ٌ"))      // ضمة: танвин дамм
-    private val kasra = Key("◌ِ", output = "ِ", alternates = listOf("ٍ"))      // كسرة: танвин касра
-    private val sukun = Key("◌ْ", output = "ْ")                                // سكون: «нет огласовки» (кружок)
+    private val fatha  = Key("◌َ", output = "َ", alternates = listOf("ً", "ٰ")) // фатха → танвин-фатх, кинжальный алиф
+    private val damma  = Key("◌ُ", output = "ُ", alternates = listOf("ٌ"))       // дамма → танвин-дамм
+    private val kasra  = Key("◌ِ", output = "ِ", alternates = listOf("ٍ", "ٕ")) // касра → танвин-касра, хамза снизу
+    private val shadda = Key("◌ّ", output = "ّ")                                 // шадда — удвоение буквы («маленькая ш»)
+    private val sukun  = Key("◌ْ", output = "ْ", alternates = listOf("ٔ", "ٓ")) // сукун → хамза сверху, мадда
 
     // ---- Арабские (арабо-индийские) цифры — верхний ряд арабской раскладки ----
     // Долгое нажатие даёт латинскую цифру (٥ → 5) — для номеров/кодов.
@@ -98,7 +99,7 @@ object Layouts {
             c("ا", listOf("أ", "إ", "آ", "ٱ", "ء")), c("ت"), c("ن"), c("م"), c("ك"), c("ط")
         ),
         listOf(
-            fatha, damma, kasra, sukun,
+            fatha, damma, kasra, shadda, sukun,
             c("ذ"), c("ظ"), c("د"), c("ز"), c("ر"), c("و", listOf("ؤ")),
             del
         ),
