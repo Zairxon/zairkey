@@ -108,23 +108,21 @@ object Layouts {
     )
 
     // ---- Symbols page 1 (цифры перенесены в основную клавиатуру), 4 ряда ----
-    // Математические знаки * - + = / — в первом ряду.
+    // Все математические знаки в первом ряду: + − × ÷ = * / %.
     val symbols: List<List<Key>> = listOf(
         listOf(
-            c("@"), c("#", listOf("№")), c("$", listOf("¢", "£", "€", "¥", "₽", "₴")),
-            c("%", listOf("‰", "℅")), c("&"), c("*", listOf("†", "‡")),
-            c("-", listOf("_")), c("+", listOf("±")), c("="), c("/", listOf("\\"))
+            c("+", listOf("±")), c("-", listOf("_")), c("×"), c("÷"),
+            c("="), c("*", listOf("†", "‡")), c("/", listOf("\\")),
+            c("%", listOf("‰", "℅")), c("(", listOf("[", "{", "<")), c(")", listOf("]", "}", ">"))
         ),
         listOf(
-            c("(", listOf("[", "{", "<")), c(")", listOf("]", "}", ">")),
-            c("\"", listOf("“", "”", "«", "»", "„")), c("'", listOf("‘", "’", "`")),
-            c(":"), c(";"), c("!", listOf("¡")), c("?", listOf("¿")),
-            c("_"), c("\\")
+            c("@"), c("#", listOf("№")), c("$", listOf("¢", "£", "€", "¥", "₽", "₴")),
+            c("&"), c("\"", listOf("“", "”", "«", "»", "„")), c("'", listOf("‘", "’", "`")),
+            c(":"), c(";"), c("!", listOf("¡")), c("?", listOf("¿"))
         ),
         listOf(
             Key("=\\<", code = KeyCode.SYMBOLS2, weight = 1.5f),
-            c("<"), c(">"), c("•", listOf("·", "◦")), c("°"), c("^"),
-            c("|"), c("~"),
+            c("_"), c("\\"), c("<"), c(">"), c("•", listOf("·", "◦")), c("°"), c("~"),
             del
         ),
         listOf(toAbc, toNum, comma, space, period, enter)
@@ -134,7 +132,7 @@ object Layouts {
     val symbols2: List<List<Key>> = listOf(
         listOf(
             c("~"), c("`"), c("|"), c("•", listOf("·", "◦")), c("√"),
-            c("π"), c("÷"), c("×"), c("¶", listOf("§")), c("∆")
+            c("π"), c("¶", listOf("§")), c("∆")
         ),
         listOf(
             c("£"), c("¢"), c("€"), c("¥", listOf("₽", "₴", "₸")), c("^"),

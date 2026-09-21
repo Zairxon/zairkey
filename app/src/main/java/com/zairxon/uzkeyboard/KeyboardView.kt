@@ -318,7 +318,9 @@ class KeyboardView(context: Context) : View(context) {
                 } else if (downKey?.code == KeyCode.SPACE &&
                     (spaceSwipeActive || abs(mx - spaceStartX) > dp(8f))) {
                     handleSpaceSwipe(mx)
-                } else {
+                } else if (!longPressFired) {
+                    // Долгое нажатие уже сработало (спецсимвол/узб. буква/смена слоя) —
+                    // скольжение НЕ должно перецепляться и печатать соседнюю клавишу.
                     val hit = keyAt(mx, my)
                     if (hit?.first !== downKey) {
                         handler.removeCallbacks(longPressRunnable)
