@@ -24,8 +24,9 @@ object Layouts {
     private val toAbc = Key("ABC", code = KeyCode.ALPHA, weight = 1.5f)
 
     // Разные наборы для точки и запятой (без повторов между ними).
-    private val period = Key(".", alternates = listOf("?", "!", "…", ":", "-", "\"", "%"))
-    private val comma = Key(",", alternates = listOf(";", "'", "@", "&", "_", "(", ")"))
+    // Точка: % : " ' ( ) ? !   Запятая: остальные знаки.
+    private val period = Key(".", alternates = listOf("%", ":", "\"", "'", "(", ")", "?", "!"))
+    private val comma = Key(",", alternates = listOf(";", "@", "&", "_", "-", "…"))
 
     // ---- Арабская пунктуация — отдельные точка/запятая только для арабской раскладки ----
     // Долгое нажатие открывает арабские знаки: ، (запятая) ؛ (точка с запятой) ؟ (вопрос) ٪ (процент).
@@ -106,19 +107,24 @@ object Layouts {
         listOf(toNum, toSym, globe, arComma, space, arPeriod, enter)
     )
 
-    // ---- Symbols page 1 (цифры перенесены в основную клавиатуру) ----
+    // ---- Symbols page 1 (цифры перенесены в основную клавиатуру), 4 ряда ----
+    // Математические знаки * - + = / — в первом ряду.
     val symbols: List<List<Key>> = listOf(
         listOf(
             c("@"), c("#", listOf("№")), c("$", listOf("¢", "£", "€", "¥", "₽", "₴")),
-            c("%", listOf("‰", "℅")), c("&"), c("-", listOf("_")),
-            c("+", listOf("±")), c("(", listOf("[", "{", "<")),
-            c(")", listOf("]", "}", ">")), c("/", listOf("\\"))
+            c("%", listOf("‰", "℅")), c("&"), c("*", listOf("†", "‡")),
+            c("-", listOf("_")), c("+", listOf("±")), c("="), c("/", listOf("\\"))
+        ),
+        listOf(
+            c("(", listOf("[", "{", "<")), c(")", listOf("]", "}", ">")),
+            c("\"", listOf("“", "”", "«", "»", "„")), c("'", listOf("‘", "’", "`")),
+            c(":"), c(";"), c("!", listOf("¡")), c("?", listOf("¿")),
+            c("_"), c("\\")
         ),
         listOf(
             Key("=\\<", code = KeyCode.SYMBOLS2, weight = 1.5f),
-            c("*", listOf("†", "‡")), c("\"", listOf("“", "”", "«", "»", "„")),
-            c("'", listOf("‘", "’", "`")), c(":"), c(";"),
-            c("!", listOf("¡")), c("?", listOf("¿")),
+            c("<"), c(">"), c("•", listOf("·", "◦")), c("°"), c("^"),
+            c("|"), c("~"),
             del
         ),
         listOf(toAbc, toNum, comma, space, period, enter)

@@ -27,6 +27,8 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     /** «Фантомный» пробел после выбора слова из подсказок: знак препинания его съедает. */
     private var autoSpacePending = false
     private val attachLeft = ".,!?:;)]}»…%٪،؛؟" // знаки, которые липнут к слову (без пробела перед ними)
+    // Апострофы/тутук белгиси — часть слова (узб. лат.): ' ' ʻ ʼ
+    private val wordMarks = "'’ʻʼ"
 
     override fun onCreate() {
         super.onCreate()
@@ -115,7 +117,8 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
 
     override fun onCharCommit(text: String) {
         val ic = currentInputConnection ?: return
-        val isLetter = text.length == 1 && text[0].isLetter()
+        // Апостроф — часть слова, а не граница (узб. лат. o'g'li = ўғли — одно слово).
+        val isWord = text.length == 1 && isWordChar(text[0])
         // После выбора слова из подсказок стоит авто-пробел. Если следующим идёт знак
         // препинания — убираем этот пробел, чтобы знак прилип к слову («слово,» а не «слово ,»).
         if (autoSpacePending) {
@@ -125,8 +128,8 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
             }
             autoSpacePending = false
         }
-        // На границе слова (не буква) — запоминаем только что набранное слово.
-        if (!isLetter) learnCurrentWord()
+        // На границе слова (не буква/апостроф) — запоминаем только что набранное слово.
+        if (!isWord) learnCurrentWord()
         // После точки автоматически ставим пробел (только в буквенном режиме).
         if (text == "." && layer == Layer.ALPHA) ic.commitText(". ", 1)
         else ic.commitText(text, 1)
@@ -164,16 +167,19 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         updateSuggestions() // теперь курсор после слова → предскажет следующее
     }
 
+    /** Апостроф/тутук считаем частью слова: o'g'li, ta'lim и т.п. — цельные слова. */
+    private fun isWordChar(c: Char): Boolean = c.isLetter() || c in wordMarks
+
     /** Пара (предыдущее завершённое слово, текущее незавершённое) перед курсором. */
     private fun contextWords(): Pair<String, String> {
         val before = currentInputConnection?.getTextBeforeCursor(64, 0)?.toString() ?: return "" to ""
         var i = before.length
-        while (i > 0 && before[i - 1].isLetter()) i--
+        while (i > 0 && isWordChar(before[i - 1])) i--
         val cur = before.substring(i)
         var j = i
-        while (j > 0 && !before[j - 1].isLetter()) j-- // пропустить разделители
+        while (j > 0 && !isWordChar(before[j - 1])) j-- // пропустить разделители
         var k = j
-        while (k > 0 && before[k - 1].isLetter()) k--
+        while (k > 0 && isWordChar(before[k - 1])) k--
         val prev = before.substring(k, j)
         return prev to cur
     }
@@ -183,9 +189,10 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     /** На границе слова: запоминаем слово и пару (пред.слово → это слово). */
     private fun learnCurrentWord() {
         val (prev, cur) = contextWords()
-        if (cur.isEmpty()) return
+        // Не запоминаем «слова» без единой буквы (например одинокий апостроф).
+        if (cur.isEmpty() || cur.none { it.isLetter() }) return
         WordStore.learn(this, cur)
-        if (prev.isNotEmpty()) WordStore.learnPair(this, prev, cur)
+        if (prev.isNotEmpty() && prev.any { it.isLetter() }) WordStore.learnPair(this, prev, cur)
     }
 
     private fun updateSuggestions() {
