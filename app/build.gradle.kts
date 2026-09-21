@@ -11,13 +11,29 @@ android {
         applicationId = "com.zairxon.uzkeyboard"
         minSdk = 24
         targetSdk = 34
-        versionCode = 11
-        versionName = "2.0"
+        versionCode = 12
+        versionName = "2.1"
+    }
+
+    // Фиксированный ключ подписи — одинаковый для локальных и CI-сборок, иначе Android
+    // требует удалить приложение перед установкой (несовпадение подписи). Пароль
+    // «android» как у debug-хранилища — не секрет; для личного sideload-приложения ок.
+    signingConfigs {
+        create("stable") {
+            storeFile = file("zairkey.keystore")
+            storePassword = "android"
+            keyAlias = "zairkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("stable")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("stable")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
