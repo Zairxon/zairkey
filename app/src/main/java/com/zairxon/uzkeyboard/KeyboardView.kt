@@ -413,7 +413,12 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun commitChar(text: String) {
-        val out = if (isShifted || isCapsLock) text.uppercase() else text
+        // Caps Lock — всё заглавными (SH); разовый Shift — только первая буква (Sh, Oʻ).
+        val out = when {
+            isCapsLock -> text.uppercase()
+            isShifted -> text.replaceFirstChar { it.uppercase() }
+            else -> text
+        }
         listener?.onCharCommit(out)
     }
 

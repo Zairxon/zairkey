@@ -56,11 +56,12 @@ object Layouts {
     )
 
     // ---- English (QWERTY) — цифровой ряд + буквы ----
-    // Узбекские диграфы по долгому нажатию: o→o', g→g', s→sh, c→ch (апостроф ASCII).
+    // Узбекские диграфы по долгому нажатию: o→oʻ, g→gʻ, s→sh, c→ch.
+    // Апостроф — ʻ (U+02BB, modifier letter turned comma) — правильный знак для oʻ/gʻ.
     val enAlpha: List<List<Key>> = listOf(
         digitsRow,
-        listOf(c("q"), c("w"), c("e"), c("r"), c("t"), c("y"), c("u"), c("i"), c("o", listOf("o'")), c("p")),
-        listOf(c("a"), c("s", listOf("sh")), c("d"), c("f"), c("g", listOf("g'")), c("h"), c("j"), c("k"), c("l")),
+        listOf(c("q"), c("w"), c("e"), c("r"), c("t"), c("y"), c("u"), c("i"), c("o", listOf("oʻ")), c("p")),
+        listOf(c("a"), c("s", listOf("sh")), c("d"), c("f"), c("g", listOf("gʻ")), c("h"), c("j"), c("k"), c("l")),
         listOf(shift, c("z"), c("x"), c("c", listOf("ch")), c("v"), c("b"), c("n"), c("m"), del),
         listOf(toNum, toSym, globe, comma, space, period, enter)
     )
