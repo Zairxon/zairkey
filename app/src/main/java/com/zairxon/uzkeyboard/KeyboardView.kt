@@ -48,6 +48,8 @@ class KeyboardView(context: Context) : View(context) {
     private fun dp(v: Float) = v * density
 
     private val rowHeight = dp(36f)
+    private val numericRowHeight = dp(48f)
+    private val activeRowHeight get() = if (gridKeys.isNotEmpty()) numericRowHeight else rowHeight
     private val vGap = dp(5f)
     private val hGap = dp(4f)
     private val topPad = dp(5f)
@@ -141,7 +143,7 @@ class KeyboardView(context: Context) : View(context) {
         val rowCount = if (gridKeys.isNotEmpty())
             ceil(gridKeys.maxOf { it.row + it.hRows }).toInt()
         else rows.size.coerceAtLeast(4)
-        val h = (topPad + topOffset + rowCount * rowHeight + rowCount * vGap).toInt()
+        val h = (topPad + topOffset + rowCount * activeRowHeight + rowCount * vGap).toInt()
         setMeasuredDimension(w, h)
     }
 
@@ -166,17 +168,17 @@ class KeyboardView(context: Context) : View(context) {
             var x = hGap
             for (k in row) {
                 val kw = usable * (k.weight / totalWeight)
-                keyRects.add(k to RectF(x, y, x + kw, y + rowHeight))
+                keyRects.add(k to RectF(x, y, x + kw, y + activeRowHeight))
                 x += kw + hGap
             }
-            y += rowHeight + vGap
+            y += activeRowHeight + vGap
         }
     }
 
     private fun computeGridRects(w: Float) {
         val cols = gridKeys.maxOf { it.col + it.wCols }
         val unitW = (w - hGap) / cols
-        val unitH = rowHeight + vGap
+        val unitH = activeRowHeight + vGap
         for (gk in gridKeys) {
             val left = hGap + gk.col * unitW
             val top = topPad + topOffset + gk.row * unitH
