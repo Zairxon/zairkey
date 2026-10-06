@@ -1,10 +1,13 @@
 name: Release APK
 
-# Публикует собранный APK в GitHub Releases при пуше тега вида v2.0, v2.1, ...
+# APK assets: Releases → latest (обновляется с main) и отдельные версии v*
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -28,9 +31,26 @@ jobs:
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk zairkey.apk
 
-      - name: Create GitHub Release
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
           files: zairkey.apk
           generate_release_notes: true
+
+      - name: Create latest release if missing
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest >/dev/null 2>&1 \\
+            || gh release create latest --title "Zairkey APK" --notes "Актуальная APK-сборка из main." --prerelease
+
+      - name: Update latest APK asset
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload latest zairkey.apk --clobber
+          gh release edit latest --notes "Собрано: $(date '+%Y-%m-%d %H:%M UTC'), коммит ${GITHUB_SHA::7}."
