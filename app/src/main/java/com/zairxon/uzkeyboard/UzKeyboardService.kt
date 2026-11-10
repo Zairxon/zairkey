@@ -72,7 +72,11 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
 
     override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
         super.onStartInput(info, restarting)
-        layer = Layer.ALPHA
+        // Числовое поле (number / phone / datetime — так браузер превращает inputmode=decimal|numeric|tel) —
+        // сразу открываем цифровую раскладку; в обычном поле — буквы.
+        val inputClass = (info?.inputType ?: 0) and InputType.TYPE_MASK_CLASS
+        layer = if (inputClass == InputType.TYPE_CLASS_NUMBER || inputClass == InputType.TYPE_CLASS_PHONE ||
+            inputClass == InputType.TYPE_CLASS_DATETIME) Layer.NUMBERS else Layer.ALPHA
         shifted = false
         capsLock = false
         autoSpacePending = false
