@@ -44,6 +44,18 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         return kbView
     }
 
+    /** Никогда не открываем полноэкранный режим ввода (в ландшафте он закрывает поле). */
+    override fun onEvaluateFullscreenMode(): Boolean = false
+
+    /**
+     * Говорим приложению, где верх клавиатуры: контент (например, поле комментария в Instagram)
+     * поднимается над ней, а не прячется под ней.
+     */
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        if (!isFullscreenMode) outInsets.contentTopInsets = outInsets.visibleTopInsets
+    }
+
     override fun onWindowShown() {
         super.onWindowShown()
         applyWindowColors()
