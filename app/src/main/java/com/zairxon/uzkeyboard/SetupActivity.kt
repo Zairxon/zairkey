@@ -41,6 +41,14 @@ class SetupActivity : AppCompatActivity() {
         })
 
         root.addView(TextView(this).apply {
+            val ver = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull()
+            text = "Версия $ver"
+            textSize = 14f
+            setTextColor(t.hint)
+            typeface = Fonts.regular(this@SetupActivity)
+        })
+
+        root.addView(TextView(this).apply {
             text = "1.  Нажмите «Включить» и включите zairkey в списке.\n" +
                 "2.  Нажмите «Выбрать» и выберите zairkey.\n" +
                 "3.  Проверьте ввод в поле ниже.\n\n" +

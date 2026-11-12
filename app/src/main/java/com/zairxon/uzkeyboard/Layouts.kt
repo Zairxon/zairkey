@@ -52,7 +52,7 @@ object Layouts {
 
     // Верхний цифровой ряд для основной клавиатуры (цифры перенесены из символов).
     private val digitsRow = listOf(
-        c("1"), c("2"), c("3"), c("4"), c("5"), c("6"), c("7"), c("8"), c("9"), c("0")
+        c("1"), c("2", listOf("²")), c("3", listOf("³")), c("4"), c("5"), c("6"), c("7"), c("8"), c("9"), c("0")
     )
 
     // ---- English (QWERTY) — цифровой ряд + буквы ----
@@ -132,7 +132,7 @@ object Layouts {
     // ---- Symbols page 2 ----
     val symbols2: List<List<Key>> = listOf(
         listOf(
-            c("~"), c("`"), c("|"), c("•", listOf("·", "◦")), c("√"),
+            c("~"), c("²"), c("³"), c("`"), c("|"), c("•", listOf("·", "◦")), c("√"),
             c("π"), c("¶", listOf("§")), c("∆")
         ),
         listOf(
@@ -157,7 +157,7 @@ object Layouts {
         GridKey(c("*"), col = 0f, row = 1.5f,  hRows = 0.75f),
         GridKey(c("/"), col = 0f, row = 2.25f, hRows = 0.75f),
         // цифровая сетка 1–9
-        GridKey(c("1"), 1f, 0f), GridKey(c("2"), 2f, 0f), GridKey(c("3"), 3f, 0f),
+        GridKey(c("1"), 1f, 0f), GridKey(c("2", listOf("²")), 2f, 0f), GridKey(c("3", listOf("³")), 3f, 0f),
         GridKey(c("4"), 1f, 1f), GridKey(c("5"), 2f, 1f), GridKey(c("6"), 3f, 1f),
         GridKey(c("7"), 1f, 2f), GridKey(c("8"), 2f, 2f), GridKey(c("9"), 3f, 2f),
         // правая колонка
