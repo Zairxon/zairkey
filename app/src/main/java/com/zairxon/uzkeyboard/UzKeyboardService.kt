@@ -33,6 +33,7 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
     override fun onCreate() {
         super.onCreate()
         DictStore.load(this) // встроенные словари ru/en/uz — грузятся в фоне
+        BigramStore.load(this) // встроенные пары слов — тоже в фоне
     }
 
     override fun onCreateInputView(): View {
@@ -219,16 +220,20 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         val merged = LinkedHashSet<String>()
         if (cur.isNotEmpty() || prev.isNotEmpty())
             WordStore.suggest(this, prev, cur, 3).forEach { merged.add(it) }
+        // Встроенные пары слов: что обычно идёт после предыдущего слова (по префиксу, если он есть).
+        BigramStore.next(prev)
+            .filter { cur.isEmpty() || (it.startsWith(cur.lowercase()) && it.length > cur.length) }
+            .forEach { if (merged.size < 3 && !WordStore.isBlocked(this, it)) merged.add(it) }
         if (cur.isNotEmpty()) {
             // Дополнение по префиксу: из частотных берём те, что чаще идут после предыдущего слова
             // (сортировка устойчивая — при равенстве остаётся порядок по частоте языка).
             DictStore.suggest(cur, 12)
-                .sortedByDescending { WordStore.pairCount(this, prev, it) }
+                .sortedByDescending { WordStore.pairCount(this, prev, it) + BigramStore.score(prev, it) }
                 .forEach { if (merged.size < 3 && !WordStore.isBlocked(this, it)) merged.add(it) }
             // Правописание: слово незнакомо — предлагаем исправления опечаток, учитывая контекст.
             if (merged.size < 3 && cur.length >= 2 && !DictStore.contains(cur) &&
                 !WordStore.isKnown(this, cur)) {
-                DictStore.correct(cur, 6) { WordStore.pairCount(this, prev, it) }
+                DictStore.correct(cur, 6) { WordStore.pairCount(this, prev, it) + BigramStore.score(prev, it) }
                     .forEach { if (merged.size < 3 && !WordStore.isBlocked(this, it)) merged.add(it) }
             }
         }
