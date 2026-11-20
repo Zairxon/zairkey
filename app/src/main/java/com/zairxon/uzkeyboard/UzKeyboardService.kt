@@ -227,7 +227,7 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         if (cur.isNotEmpty()) {
             // Дополнение по префиксу: из частотных берём те, что чаще идут после предыдущего слова
             // (сортировка устойчивая — при равенстве остаётся порядок по частоте языка).
-            DictStore.suggest(cur, 12)
+            DictStore.suggest(cur, 40)
                 .sortedByDescending { WordStore.pairCount(this, prev, it) + BigramStore.score(prev, it) }
                 .forEach { if (merged.size < 3 && !WordStore.isBlocked(this, it)) merged.add(it) }
             // Правописание: слово незнакомо — предлагаем исправления опечаток, учитывая контекст.
