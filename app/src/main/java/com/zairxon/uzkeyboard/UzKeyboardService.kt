@@ -219,10 +219,19 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         val merged = LinkedHashSet<String>()
         if (cur.isNotEmpty() || prev.isNotEmpty())
             WordStore.suggest(this, prev, cur, 3).forEach { merged.add(it) }
-        if (cur.isNotEmpty())
-            DictStore.suggest(cur, 3).forEach {
-                if (merged.size < 3 && !WordStore.isBlocked(this, it)) merged.add(it)
+        if (cur.isNotEmpty()) {
+            // Дополнение по префиксу: из частотных берём те, что чаще идут после предыдущего слова
+            // (сортировка устойчивая — при равенстве остаётся порядок по частоте языка).
+            DictStore.suggest(cur, 12)
+                .sortedByDescending { WordStore.pairCount(this, prev, it) }
+                .forEach { if (merged.size < 3 && !WordStore.isBlocked(this, it)) merged.add(it) }
+            // Правописание: слово незнакомо — предлагаем исправления опечаток, учитывая контекст.
+            if (merged.size < 3 && cur.length >= 2 && !DictStore.contains(cur) &&
+                !WordStore.isKnown(this, cur)) {
+                DictStore.correct(cur, 6) { WordStore.pairCount(this, prev, it) }
+                    .forEach { if (merged.size < 3 && !WordStore.isBlocked(this, it)) merged.add(it) }
             }
+        }
         kbView.setSuggestions(merged.toList())
     }
 

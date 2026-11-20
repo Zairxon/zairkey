@@ -59,6 +59,19 @@ object WordStore {
         save(ctx)
     }
 
+    /** Сколько раз [next] шло после [prev] (0 — не встречалось). Для контекстного ранжирования. */
+    fun pairCount(ctx: Context, prev: String, next: String): Int {
+        if (prev.isEmpty()) return 0
+        ensure(ctx)
+        return bi[prev.lowercase()]?.get(next.lowercase()) ?: 0
+    }
+
+    /** Знакомо ли слово (выучено пользователем) — тогда его не «исправляем». */
+    fun isKnown(ctx: Context, word: String): Boolean {
+        ensure(ctx)
+        return uni.containsKey(word.lowercase())
+    }
+
     /** Запомнить слово. */
     fun learn(ctx: Context, word: String) {
         if (!valid(word)) return
