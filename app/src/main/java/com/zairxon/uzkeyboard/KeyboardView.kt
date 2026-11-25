@@ -53,6 +53,7 @@ class KeyboardView(context: Context) : View(context) {
     private val vGap = dp(5f)
     private val hGap = dp(4f)
     private val topPad = dp(5f)
+    private val hitSlop = dp(8f) // насколько мимо клавиши палец ещё считается нажатием на неё
     private val corner = dp(Fonts.cornerDp)
 
     // Панель подсказок (обучение словам). Высота ЗАРЕЗЕРВИРОВАНА всегда, чтобы
@@ -278,9 +279,23 @@ class KeyboardView(context: Context) : View(context) {
         canvas.drawText(label, cx, ty, textPaint)
     }
 
+    /**
+     * Клавиша под пальцем. Зазоры между клавишами и поля по краям — тоже зона нажатия:
+     * если палец попал мимо прямоугольника, берём ближайшую клавишу (не дальше [hitSlop]),
+     * иначе нажатия «в щель» пропадали.
+     */
     private fun keyAt(x: Float, y: Float): Pair<Key, RectF>? {
-        for (kr in keyRects) if (kr.second.contains(x, y)) return kr
-        return null
+        var best: Pair<Key, RectF>? = null
+        var bestD = Float.MAX_VALUE
+        for (kr in keyRects) {
+            val r = kr.second
+            val dx = maxOf(r.left - x, 0f, x - r.right)
+            val dy = maxOf(r.top - y, 0f, y - r.bottom)
+            val d = dx * dx + dy * dy
+            if (d == 0f) return kr
+            if (d < bestD) { bestD = d; best = kr }
+        }
+        return if (best != null && bestD <= hitSlop * hitSlop) best else null
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
