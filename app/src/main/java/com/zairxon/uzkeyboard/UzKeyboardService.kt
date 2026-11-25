@@ -240,6 +240,11 @@ class UzKeyboardService : InputMethodService(), KeyboardView.Listener {
         kbView.setSuggestions(merged.toList())
     }
 
+    /** Кнопка «свернуть»: прячем клавиатуру, поле ввода остаётся в фокусе (тап по полю откроет снова). */
+    override fun onHideKeyboard() {
+        requestHideSelf(0)
+    }
+
     override fun onSuggestionDelete(word: String) {
         WordStore.block(this, word) // long-press по подсказке — скрыть слово навсегда
         updateSuggestions()

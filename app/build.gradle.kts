@@ -11,8 +11,8 @@ android {
         applicationId = "com.zairxon.uzkeyboard"
         minSdk = 24
         targetSdk = 34
-        versionCode = 24
-        versionName = "2.13"
+        versionCode = 25
+        versionName = "2.14"
     }
 
     // Фиксированный ключ подписи — одинаковый для локальных и CI-сборок, иначе Android

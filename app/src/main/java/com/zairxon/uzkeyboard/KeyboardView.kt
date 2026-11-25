@@ -32,6 +32,8 @@ class KeyboardView(context: Context) : View(context) {
         fun onCursorMove(steps: Int)
         fun onSuggestionPicked(word: String)
         fun onSuggestionDelete(word: String)
+        /** Кнопка «свернуть клавиатуру» в панели подсказок. */
+        fun onHideKeyboard()
     }
 
     var listener: Listener? = null
@@ -66,6 +68,9 @@ class KeyboardView(context: Context) : View(context) {
         suggestions.getOrNull(suggDownIndex)?.let { suggLongFired = true; listener?.onSuggestionDelete(it) }
     }
     private val topOffset get() = suggBarH
+    private val hideBtnW = dp(48f) // кнопка «свернуть» справа в панели подсказок
+    private var hideDown = false
+    private val hidePath = android.graphics.Path()
 
     private val serifFont = Fonts.serif(context)
     private val interFont = Fonts.medium(context)
@@ -230,9 +235,33 @@ class KeyboardView(context: Context) : View(context) {
         }
     }
 
+    private fun drawHideButton(canvas: Canvas) {
+        val l = width - hideBtnW
+        if (hideDown) {
+            keyPaint.color = theme.keyPressed
+            canvas.drawRoundRect(RectF(l + hGap, topPad, width - hGap, suggBarH - dp(2f)), corner, corner, keyPaint)
+        }
+        // стрелка «вниз» (шеврон)
+        val cx = l + hideBtnW / 2f
+        val cy = suggBarH / 2f
+        val s = dp(7f)
+        hidePath.reset()
+        hidePath.moveTo(cx - s, cy - s / 2f)
+        hidePath.lineTo(cx, cy + s / 2f)
+        hidePath.lineTo(cx + s, cy - s / 2f)
+        previewPaint.style = Paint.Style.STROKE
+        previewPaint.strokeWidth = dp(2.2f)
+        previewPaint.strokeCap = Paint.Cap.ROUND
+        previewPaint.strokeJoin = Paint.Join.ROUND
+        previewPaint.color = if (hideDown) theme.textOnAccent else theme.text
+        canvas.drawPath(hidePath, previewPaint)
+        previewPaint.style = Paint.Style.FILL
+    }
+
     private fun drawSuggestions(canvas: Canvas) {
+        drawHideButton(canvas)
         if (suggestions.isEmpty()) return
-        val cellW = width.toFloat() / suggestions.size
+        val cellW = (width - hideBtnW) / suggestions.size
         // подсветка нажатой подсказки
         if (suggDownIndex in suggestions.indices) {
             keyPaint.color = theme.keyPressed
@@ -257,7 +286,7 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun suggIndexAt(x: Float): Int {
         if (suggestions.isEmpty()) return -1
-        val cellW = width.toFloat() / suggestions.size
+        val cellW = (width - hideBtnW) / suggestions.size
         return (x / cellW).toInt().coerceIn(0, suggestions.size - 1)
     }
 
@@ -301,6 +330,12 @@ class KeyboardView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                if (event.y < topOffset && event.x >= width - hideBtnW) {
+                    hideDown = true
+                    downKey = null
+                    invalidate()
+                    return true
+                }
                 if (suggestions.isNotEmpty() && event.y < topOffset) {
                     suggDownIndex = suggIndexAt(event.x)
                     suggLongFired = false
@@ -359,6 +394,12 @@ class KeyboardView(context: Context) : View(context) {
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                if (hideDown) {
+                    hideDown = false
+                    invalidate()
+                    listener?.onHideKeyboard()
+                    return true
+                }
                 if (suggDownIndex >= 0) {
                     handler.removeCallbacks(suggLongRunnable)
                     val word = if (suggLongFired) null else suggestions.getOrNull(suggDownIndex)
@@ -376,6 +417,7 @@ class KeyboardView(context: Context) : View(context) {
                 handler.removeCallbacks(suggLongRunnable)
                 suggDownIndex = -1
                 suggLongFired = false
+                hideDown = false
                 stopDeleteRepeat()
                 closeAltPopup()
                 clearPressed()
